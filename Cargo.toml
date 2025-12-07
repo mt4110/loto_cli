@@ -1,0 +1,15 @@
+[package]
+name = "loto_random_cli"
+version = "0.1.0"
+edition = "2021"
+description = "Loto 6/7 random generator with an Oracle mode"
+license = "MIT"
+
+[dependencies]
+rand = "0.8"
+clap = { version = "4", features = ["derive"] }
+chrono = "0.4.42"
+rand_distr = "0.5.1"
+sha2 = "0.10.9"
+hex = "0.4.3"
+

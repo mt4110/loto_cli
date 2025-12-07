@@ -1,0 +1,43 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "words": [
+        "aquarius",
+        "aries",
+        "butsumetsu",
+        "capricorn",
+        "chrono",
+        "datelike",
+        "divination",
+        "feng",
+        "gemini",
+        "libra",
+        "loto",
+        "masaki",
+        "mise",
+        "pisces",
+        "rngs",
+        "rokuyo",
+        "saggitarius",
+        "sanmei",
+        "scorpio",
+        "senbu",
+        "senkatsu",
+        "shakku",
+        "shui",
+        "taian",
+        "takemura",
+        "taurus",
+        "tomobiki",
+        "utc",
+        "virgo"
+    ],
+    "ignorePaths": [
+        "target",
+        "Cargo.lock",
+        ".git",
+        ".vscode",
+        ".idea",
+        "*.csv"
+    ]
+}
