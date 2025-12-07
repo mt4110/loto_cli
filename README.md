@@ -42,7 +42,7 @@ loto --version
 
 ロト6を10口生成する場合（デフォルトは loto6, pure）:
 ```bash
-loto-random-cli loto6 --n 10
+loto-random-cli loto6 pure --n 10
 ```
 
 ### アルゴリズムの選択
