@@ -103,6 +103,8 @@ pub struct OracleContext {
     // System
     // rng is removed, modules should instantiate thread_rng() themselves or we pass it in methods
     pub host_fingerprint: u64,
+    pub system_load: Option<f32>, // Memory usage percentage (0.0 - 100.0)
+    pub observer_resonance: Option<u128>, // Nanoseconds resonance
 
     // Derived (computed in new())
     pub western_zodiac: Option<WesternZodiac>,
@@ -121,13 +123,44 @@ impl OracleContext {
         aura_color: Option<AuraColor>,
     ) -> Self {
         use chrono::Datelike;
+        use std::io::{self, Write};
+        use std::time::{Instant, SystemTime, UNIX_EPOCH};
+        use sysinfo::System;
+
         let now_utc = Utc::now();
 
+        // --- 1. Digital Animism (Machine Spirit) ---
+        let mut sys = System::new_all();
+        sys.refresh_all();
+        let total_mem = sys.total_memory();
+        let used_mem = sys.used_memory();
+        let system_load = if total_mem > 0 {
+            Some((used_mem as f32 / total_mem as f32) * 100.0)
+        } else {
+            None
+        };
+
+        // --- 2. Quantum Observer Effect ---
+        eprintln!("🌌 Awaiting Observer Intervention...");
+        eprint!("   Press [ENTER] when you feel the cosmic alignment: ");
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        let start = Instant::now();
+        io::stdin().read_line(&mut input).unwrap();
+        
+        let elapsed = start.elapsed().as_nanos();
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let resonance = elapsed ^ timestamp; // XOR mixing
+        
+        eprintln!("⚡ Quantum state collapsed at {}ns. Resonance: {:x}", elapsed, resonance);
+
+        // Derivations
         let western_zodiac = birth_date.map(derive_western_zodiac);
         let chinese_zodiac = birth_date.map(|d| derive_chinese_zodiac(d.year()));
         let rokuyo = derive_rokuyo(now_utc);
         let moon_phase = derive_moon_phase(now_utc);
-
+        
         // Weekday
         let weekday = match now_utc.weekday() {
             chrono::Weekday::Mon => Weekday::Mon,
@@ -139,8 +172,8 @@ impl OracleContext {
             chrono::Weekday::Sun => Weekday::Sun,
         };
 
-        // Pseudo fingerprint
-        let host_fingerprint = 0xCAFEBABE; // simplified
+        // Pseudo fingerprint mixed with resonance
+        let host_fingerprint = 0xCAFEBABE ^ (resonance as u64); 
 
         OracleContext {
             max,
@@ -150,6 +183,8 @@ impl OracleContext {
             blood_type,
             aura_color,
             host_fingerprint,
+            system_load,
+            observer_resonance: Some(resonance),
             western_zodiac,
             chinese_zodiac,
             rokuyo,
@@ -337,7 +372,7 @@ impl OracleEngine {
         let range_len = ctx.max as usize;
         let mut weights = vec![1.0; range_len + 1]; // 1-based index (0 unused)
 
-        eprintln!("🔮 THE ORACLE ENGAGES");
+        eprintln!("🔮 THE ORACLE ENGAGES (神託起動)");
         eprintln!("----------------------------------------");
 
         for module in &self.modules {
@@ -345,7 +380,7 @@ impl OracleEngine {
         }
 
         eprintln!("----------------------------------------");
-        eprintln!("🌌 Converging timelines...");
+        eprintln!("🌌 Converging timelines (世界線収束)...");
 
         // Normalize
         let sum: f64 = weights.iter().skip(1).sum();
@@ -385,7 +420,7 @@ impl OracleEngine {
 
         result.sort();
         eprintln!(
-            "✨ REVELATION: [{}]",
+            "✨ REVELATION (啓示): [{}]",
             result
                 .iter()
                 .map(|n| n.to_string())
