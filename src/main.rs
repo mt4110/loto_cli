@@ -21,11 +21,11 @@ use rand::thread_rng;
 )]
 struct Cli {
     /// 種類: loto6 or loto7
-    #[arg(long, value_enum, default_value_t = GameType::Loto6)]
+    #[arg(value_enum, default_value_t = GameType::Loto6)]
     r#type: GameType,
 
     /// アルゴリズム: pure, spread, cluster, favorite (hidden: oracle)
-    #[arg(long, default_value = "pure")]
+    #[arg(default_value = "pure")]
     algo: String,
 
     /// 何口分生成するか

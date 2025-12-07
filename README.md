@@ -33,21 +33,21 @@ loto --version
 
 ### 実行 (インストールしない場合)
 ```bash
-./target/release/loto_random_cli [TYPE] [OPTIONS]
+./target/release/loto_random_cli [TYPE] [ALGO] [OPTIONS]
 ```
 
 ## 使い方
 
 ### 基本的な生成
 
-ロト6を10口生成する場合：
+ロト6を10口生成する場合（デフォルトは loto6, pure）:
 ```bash
 loto-random-cli loto6 --n 10
 ```
 
-### アルゴリズムの選択 (`--algo`)
+### アルゴリズムの選択
 
-生成ロジックを変更することができます。
+生成ロジックを変更する場合は、第2引数に指定します。
 
 - `pure` (デフォルト): 完全ランダム。偏りなし。
 - `spread`: 数字が全体に分散するように調整されます。
@@ -56,7 +56,7 @@ loto-random-cli loto6 --n 10
 
 例:
 ```bash
-loto-random-cli loto7 --n 5 --algo spread
+loto-random-cli loto7 spread --n 5
 ```
 
 ### 結果の保存
