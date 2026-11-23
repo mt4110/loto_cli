@@ -1,16 +1,13 @@
 [package]
 name = "loto_random_cli"
-version = "0.1.0"
-edition = "2021"
-description = "Loto 6/7 random generator with an Oracle mode"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.100"
+description = "Loto 6/7 lottery number generator with a playful Oracle mode"
 license = "MIT"
+repository = "https://github.com/mt4110/loto_cli"
 
 [dependencies]
-rand = "0.8"
-clap = { version = "4", features = ["derive"] }
-chrono = "0.4.42"
-rand_distr = "0.5.1"
-sha2 = "0.10.9"
-hex = "0.4.3"
-sysinfo = "0.36.1"
-
+time = { version = "0.3.55", features = ["macros", "parsing"] }
+clap = { version = "4.6.9", features = ["derive"] }
+getrandom = { version = "0.4.3", features = ["std"] }

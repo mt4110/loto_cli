@@ -1,81 +1,56 @@
-#遊び枠 Loto Random CLI (ロト・ランダム・CLI)
+# Loto Random CLI
 
-日本のロト6およびロト7のための、高機能乱数生成ツールです。
-単なるランダム生成だけでなく、様々なアルゴリズムを選択して「狙った」数字を生成することができます。
+ロト6・ロト7の番号を選ぶ、遊びと乱数教材のための Rust CLI です。
 
-## インストールとビルド
+## インストール
 
-### ビルド
-
-再現生を保証するため、Nix環境でのビルドを推奨します。
+[GitHub Releases](https://github.com/mt4110/loto_cli/releases) から macOS arm64 または Linux x86-64 用のアーカイブを取得し、展開したバイナリを実行します。ソースから導入する場合は、リポジトリ内で次を実行します。
 
 ```bash
-# Nix開発シェルに入る (依存関係の固定)
-nix develop
-
-# ビルド
-cargo build --release
+cargo install --locked --path .
+loto_random_cli --version
 ```
 
-※ `mise` を使用している場合でも、`nix develop` 内では `flake.nix` で定義された環境（Rustツールチェーンや依存ライブラリ）が優先・保証されます。
-
-### インストール (PATHへの追加)
-ツールをシステム全体で使用したい場合、`/usr/local/bin` 等にコピーすることをお勧めします。
-
-```bash
-# ビルドしたバイナリをコピー (適宜 sudo を使ってください)
-sudo cp target/release/loto_random_cli /usr/local/bin/loto
-
-# 実行確認
-loto --version
-```
-※ 上記ではコマンド名を使いやすく `loto` に変更していますが、お好みで変えてください。
-
-### 実行 (インストールしない場合)
-```bash
-./target/release/loto_random_cli [TYPE] [ALGO] [OPTIONS]
-```
+Rustup、mise、Nix の開発環境は Rust 1.100.0 を使用します。Nix の場合は先に `nix develop` を実行します。
 
 ## 使い方
 
-### 基本的な生成
-
-ロト6を10口生成する場合（デフォルトは loto6, pure）:
 ```bash
-loto-random-cli loto6 pure --n 10
+# OSの乱数で均等に選ぶ
+loto_random_cli loto6 pure --n 3 --out tickets.csv
+
+# 占いを組み合わせて選ぶ
+loto_random_cli loto7 oracle --birth-date 1990-05-17 --birth-hour 8 --aura-color gold --n 3
+
+# 1等の確率と毎週1口買う場合の平均待ち時間
+loto_random_cli loto6 odds
 ```
 
-### アルゴリズムの選択
+神託モードは、月相の概算、簡易四柱推命、十二支と色を使う東洋占い、運命数、太陽星座を重ねて数字に重みを付けます。当せん確率は変わりません。節入りは固定日、月相は平均周期で概算し、日柱は午前0時で切り替えます。出生時を省略すると時柱を省き、生年月日を省略すると日本時間の今日を参照します。入力はローカルで処理します。
 
-生成ロジックを変更する場合は、第2引数に指定します。
+対話端末の神託モードでは Enter を押すまでの時間も数字選びに反映します。自動実行では Enter 待ちを省きます。対話端末でも `--no-prompt` で省けます。`divine` と `destiny` は `oracle` の別名です。旧来の `spread`、`cluster`、`favorite` は引き続き `pure` と同じ処理です。
 
-- `pure` (デフォルト): 完全ランダム。偏りなし。
-- `spread`: 数字が全体に分散するように調整されます。
-- `cluster`: 数字が特定の範囲に固まる傾向を持たせます。
-- `favorite`: 過去の当選番号に近い傾向（モック）を再現します。
+ロト6の1等は1口あたり **1 / 6,096,454**。毎週1口（年52口）、独立な抽せんと仮定すると、初当せんまでの平均は約 **117,240年** です。出典は[宝くじ公式サイト](https://www.takarakuji-official.jp/brand/suji/lineup-loto6/)です。
 
-例:
+## 乱数教材
+
 ```bash
-loto-random-cli loto7 spread --n 5
+# 同じコマンドを2回実行すると、同じ番号列が出る
+loto_random_cli loto6 pure --rng seeded --seed 42 --n 3
+loto_random_cli loto6 pure --rng seeded --seed 42 --n 3
+
+# getrandom で OS の乱数を取得する既定モード
+loto_random_cli loto6 pure --rng os --n 3
 ```
 
-### 結果の保存
+教材モードは予測可能な32ビットの線形合同法です。秘密情報やトークンの生成には使えません。JavaScript の `Math.random()` が代表する非暗号用途の疑似乱数と OS の乱数の違いを、シードによる再現で体験できます。
 
-CSVファイルに出力することも可能です。
+## リリースの検証
+
+GitHub Releases のアーカイブは GitHub Actions のビルド証明付きです。`<archive>` をファイル名に置き換えて検証できます。
+
 ```bash
-loto-random-cli loto6 --out tickets.csv
+gh attestation verify <archive> --repo mt4110/loto_cli
 ```
 
-## 開発者向け情報
-
-このプロジェクトは Rust で記述されており、Nix を使用した再現可能な開発環境を提供しています。
-
-### 隠された機能について
-
-*「星の巡りが良ければ、運命を変えることができるかもしれない……」*
-
-コマンドライン引数には、ヘルプに表示されない「秘密の言葉」が存在するという噂があります。
-もしあなたが自身の **誕生日 (`--birth-date`)** や **血液型 (`--blood-type`)** をコマンドに伝え、その言葉を唱えれば、
-ただの乱数生成器が「神託」を授けるようになるかもしれません。
-
-*(ヒント: 未来予知、占い、運命... 英語で言えば？)*
+脆弱性の連絡方法は [SECURITY.md](SECURITY.md) を参照してください。
