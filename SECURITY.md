@@ -7,5 +7,5 @@ Please report suspected vulnerabilities privately using
 Include the affected version, reproduction steps, and impact. Please omit
 credentials, personal information, and real lottery purchases.
 
-The maintainer will acknowledge reports as availability permits, coordinate
+The maintainer aims to acknowledge reports within 14 calendar days and will coordinate
 disclosure in the private report, and document fixes in release notes.

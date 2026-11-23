@@ -1,5 +1,7 @@
 # Loto Random CLI
 
+[English usage guide](docs/usage.en.md)
+
 ロト6・ロト7の番号を選ぶ、遊びと乱数教材のための Rust CLI です。
 
 ## インストール
@@ -54,3 +56,7 @@ gh attestation verify <archive> --repo mt4110/loto_cli
 ```
 
 脆弱性の連絡方法は [SECURITY.md](SECURITY.md) を参照してください。
+
+## バグ報告と貢献
+
+バグや改善案は [GitHub Issues](https://github.com/mt4110/loto_cli/issues) へどうぞ。PR の出し方とテスト手順は [CONTRIBUTING.md](CONTRIBUTING.md) にあります。日本語・英語どちらでも受け付けます。
