@@ -148,19 +148,25 @@ impl OracleContext {
         let mut input = String::new();
         let start = Instant::now();
         io::stdin().read_line(&mut input).unwrap();
-        
+
         let elapsed = start.elapsed().as_nanos();
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let resonance = elapsed ^ timestamp; // XOR mixing
-        
-        eprintln!("⚡ Quantum state collapsed at {}ns. Resonance: {:x}", elapsed, resonance);
+
+        eprintln!(
+            "⚡ Quantum state collapsed at {}ns. Resonance: {:x}",
+            elapsed, resonance
+        );
 
         // Derivations
         let western_zodiac = birth_date.map(derive_western_zodiac);
         let chinese_zodiac = birth_date.map(|d| derive_chinese_zodiac(d.year()));
         let rokuyo = derive_rokuyo(now_utc);
         let moon_phase = derive_moon_phase(now_utc);
-        
+
         // Weekday
         let weekday = match now_utc.weekday() {
             chrono::Weekday::Mon => Weekday::Mon,
@@ -173,7 +179,7 @@ impl OracleContext {
         };
 
         // Pseudo fingerprint mixed with resonance
-        let host_fingerprint = 0xCAFEBABE ^ (resonance as u64); 
+        let host_fingerprint = 0xCAFEBABE ^ (resonance as u64);
 
         OracleContext {
             max,
