@@ -10,10 +10,7 @@ use std::time::Instant;
 use clap::{CommandFactory, Parser, ValueEnum, error::ErrorKind};
 use oracle::{AuraColor, BloodType};
 use random::{Random, RandomKind};
-use time::{
-    Date, OffsetDateTime,
-    macros::{format_description, offset},
-};
+use time::{Date, OffsetDateTime, macros::offset};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -48,7 +45,7 @@ struct Cli {
 
     /// 生年月日 (YYYY-MM-DD)
     #[arg(long)]
-    #[arg(value_parser = parse_birth_date)]
+    #[arg(value_parser = oracle_modules::parse_birth_date)]
     birth_date: Option<Date>,
 
     /// 出生地の時計での出生時 (0–23)。四柱推命の時柱に使用
@@ -92,10 +89,6 @@ fn invalid(message: &str) -> ! {
     Cli::command()
         .error(ErrorKind::InvalidValue, message)
         .exit()
-}
-
-fn parse_birth_date(value: &str) -> Result<Date, time::error::Parse> {
-    Date::parse(value, format_description!("[year]-[month]-[day]"))
 }
 
 fn main() -> Result<(), Box<dyn Error>> {

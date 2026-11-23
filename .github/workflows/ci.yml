@@ -28,5 +28,6 @@ jobs:
     with:
       scan-args: |-
         --lockfile=Cargo.lock
+        --lockfile=fuzz/Cargo.lock
       upload-sarif: false
       runs-on: ubuntu-26.04
