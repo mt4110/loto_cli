@@ -1,4 +1,11 @@
-use time::{Date, macros::date};
+use time::{
+    Date,
+    macros::{date, format_description},
+};
+
+pub fn parse_birth_date(value: &str) -> Result<Date, time::error::Parse> {
+    Date::parse(value, format_description!("[year]-[month]-[day]"))
+}
 
 const STEMS: [char; 10] = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 const BRANCHES: [char; 12] = [

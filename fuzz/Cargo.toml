@@ -1,0 +1,19 @@
+[package]
+name = "loto_random_cli_fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4.13"
+time = { version = "0.3.55", features = ["macros", "parsing"] }
+
+[[bin]]
+name = "birth_date"
+path = "fuzz_targets/birth_date.rs"
+test = false
+doc = false
+bench = false

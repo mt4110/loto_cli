@@ -1,0 +1,31 @@
+name: Fuzz
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  fuzz:
+    name: Fuzz Oracle birth dates
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      FUZZ_TOOLCHAIN: nightly-2026-11-22
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned fuzz tools
+        run: |
+          rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
+          cargo install cargo-fuzz --locked --version 0.13.2 --root "$RUNNER_TEMP/fuzz-tools"
+      - name: Exercise date parsing and Oracle calculations
+        run: |
+          corpus=$(mktemp -d)
+          cp fuzz/seeds/birth_date/* "$corpus"
+          toolchain_bin=$(dirname "$(rustup which --toolchain "$FUZZ_TOOLCHAIN" rustc)")
+          export PATH="$toolchain_bin:$RUNNER_TEMP/fuzz-tools/bin:$PATH"
+          rustup run "$FUZZ_TOOLCHAIN" cargo fetch --locked --manifest-path fuzz/Cargo.toml
+          CARGO_NET_OFFLINE=true rustup run "$FUZZ_TOOLCHAIN" cargo fuzz run birth_date "$corpus" -- \
+            -max_total_time=20 -max_len=32
