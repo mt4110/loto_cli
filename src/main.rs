@@ -1,269 +1,189 @@
 mod oracle;
 mod oracle_modules;
+mod random;
 
 use std::error::Error;
 use std::fs::File;
-use std::io::Write;
-use std::ops::RangeInclusive;
+use std::io::{self, IsTerminal, Write};
+use std::time::Instant;
 
-use chrono::NaiveDate;
-use clap::{Parser, ValueEnum};
-use oracle::{AuraColor, BloodType, OracleContext, OracleEngine};
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use clap::{CommandFactory, Parser, ValueEnum, error::ErrorKind};
+use oracle::{AuraColor, BloodType};
+use random::{Random, RandomKind};
+use time::{
+    Date, OffsetDateTime,
+    macros::{format_description, offset},
+};
 
-/// CLI 引数定義
 #[derive(Parser, Debug)]
 #[command(
     name = "loto-random-cli",
     version,
-    about = "ロト6 / ロト7 の完全ランダム数字ジェネレータ"
+    about = "ロト6・ロト7の番号生成と乱数の実験"
 )]
 struct Cli {
-    /// 種類: loto6 or loto7
+    /// くじの種類
     #[arg(value_enum, default_value_t = GameType::Loto6)]
-    r#type: GameType,
+    game: GameType,
 
-    /// アルゴリズム: pure, spread, cluster, favorite (hidden: oracle)
+    /// pure（均等抽選）、oracle（占い）、odds（1等の確率）
     #[arg(default_value = "pure")]
-    algo: String,
+    algorithm: String,
 
     /// 何口分生成するか
     #[arg(long, default_value_t = 10)]
     n: usize,
 
-    /// 出力CSVファイルパス（指定したときだけCSVに書き出す）
+    /// CSVの出力先
     #[arg(long)]
     out: Option<String>,
 
-    // --- Oracle Mode Optionals ---
-    /// 生年月日 (YYYY-MM-DD) - Oracle mode only
+    /// 乱数源。seeded は予測可能性を学ぶ教材専用
+    #[arg(long, value_enum, default_value_t = RandomKind::Os)]
+    rng: RandomKind,
+
+    /// 教材モードの32ビットシード
     #[arg(long)]
-    birth_date: Option<NaiveDate>,
+    seed: Option<u32>,
 
-    /// 血液型 (A, B, O, AB) - Oracle mode only
+    /// 生年月日 (YYYY-MM-DD)
+    #[arg(long)]
+    #[arg(value_parser = parse_birth_date)]
+    birth_date: Option<Date>,
+
+    /// 出生地の時計での出生時 (0–23)。四柱推命の時柱に使用
+    #[arg(long, requires = "birth_date", value_parser = clap::value_parser!(u8).range(0..=23))]
+    birth_hour: Option<u8>,
+
+    /// 血液型（神託モードの追加要素）
     #[arg(long, value_enum)]
-    blood_type: Option<BloodTypeArg>,
+    blood_type: Option<BloodType>,
 
-    /// オーラカラー - Oracle mode only
+    /// オーラカラー（神託モードの追加要素）
     #[arg(long, value_enum)]
-    aura_color: Option<AuraColorArg>,
+    aura_color: Option<AuraColor>,
+
+    /// 神託モードで Enter 待ちを省略
+    #[arg(long)]
+    no_prompt: bool,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum BloodTypeArg {
-    A,
-    B,
-    O,
-    AB,
-}
-
-impl From<BloodTypeArg> for BloodType {
-    fn from(arg: BloodTypeArg) -> Self {
-        match arg {
-            BloodTypeArg::A => BloodType::A,
-            BloodTypeArg::B => BloodType::B,
-            BloodTypeArg::O => BloodType::O,
-            BloodTypeArg::AB => BloodType::AB,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum AuraColorArg {
-    Red,
-    Blue,
-    Green,
-    Gold,
-    Purple,
-    White,
-    Black,
-}
-
-impl From<AuraColorArg> for AuraColor {
-    fn from(arg: AuraColorArg) -> Self {
-        match arg {
-            AuraColorArg::Red => AuraColor::Red,
-            AuraColorArg::Blue => AuraColor::Blue,
-            AuraColorArg::Green => AuraColor::Green,
-            AuraColorArg::Gold => AuraColor::Gold,
-            AuraColorArg::Purple => AuraColor::Purple,
-            AuraColorArg::White => AuraColor::White,
-            AuraColorArg::Black => AuraColor::Black,
-        }
-    }
-}
-
-/// ゲームタイプ
-#[derive(Copy, Clone, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum GameType {
     Loto6,
     Loto7,
 }
 
 impl GameType {
-    /// 各ゲームの数値範囲と口あたりの個数を返す
-    fn config(&self) -> (RangeInclusive<u32>, usize) {
+    fn config(self) -> (usize, usize) {
         match self {
-            GameType::Loto6 => (1..=43, 6),
-            GameType::Loto7 => (1..=37, 7),
+            Self::Loto6 => (43, 6),
+            Self::Loto7 => (37, 7),
         }
     }
-}
 
-enum Algorithm {
-    Pure,
-    Spread,
-    Cluster,
-    Favorite,
-    Oracle,
-}
-
-impl Algorithm {
-    fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
-            "pure" => Algorithm::Pure,
-            "spread" => Algorithm::Spread,
-            "cluster" => Algorithm::Cluster,
-            "favorite" => Algorithm::Favorite,
-            "oracle" | "divine" | "destiny" => {
-                eprintln!("🔮 The forbidden Oracle mode has been invoked. Probability bends, but math remains unchanged.");
-                Algorithm::Oracle
-            }
-            _ => Algorithm::Pure,
-        }
+    fn combinations(self) -> u64 {
+        let (max, picks) = self.config();
+        (1..=picks as u64).fold(1, |total, i| total * (max as u64 - i + 1) / i)
     }
 }
 
-/// 1口分の番号を生成
-fn generate_ticket(
-    algo: &Algorithm,
-    range: RangeInclusive<u32>,
-    picks: usize,
-    oracle_engine: &mut Option<OracleEngine>,
-    oracle_ctx: &Option<OracleContext>,
-) -> Vec<u32> {
-    match algo {
-        Algorithm::Oracle => {
-            if let Some(engine) = oracle_engine {
-                if let Some(ctx) = oracle_ctx {
-                    return engine.divine(ctx);
-                }
-            }
-            // Fallback if something went wrong
-            pure_ticket(range, picks)
-        }
-        Algorithm::Pure | _ => pure_ticket(range, picks),
-        // TODO: Implement other algos if needed, for now they fall back to pure or just placeholders
-        // We focus on Oracle.
-    }
+fn invalid(message: &str) -> ! {
+    Cli::command()
+        .error(ErrorKind::InvalidValue, message)
+        .exit()
 }
 
-fn pure_ticket(range: RangeInclusive<u32>, picks: usize) -> Vec<u32> {
-    let mut nums: Vec<u32> = range.clone().collect();
-    let mut rng = thread_rng();
-    nums.shuffle(&mut rng);
-    nums.truncate(picks);
-    nums.sort();
-    nums
-}
-
-/// CSVヘッダ行を作る: draw,n1,n2,...,n6/7
-fn build_header(picks: usize) -> String {
-    let mut s = String::from("draw");
-    for i in 1..=picks {
-        s.push_str(&format!(",n{}", i));
-    }
-    s.push('\n');
-    s
-}
-
-/// 1行ぶんのCSV: 口番号 + 数字列
-fn build_row(draw_index: usize, numbers: &[u32]) -> String {
-    let mut s = format!("{}", draw_index);
-    for n in numbers {
-        s.push(',');
-        s.push_str(&n.to_string());
-    }
-    s.push('\n');
-    s
+fn parse_birth_date(value: &str) -> Result<Date, time::error::Parse> {
+    Date::parse(value, format_description!("[year]-[month]-[day]"))
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
-    let algo = Algorithm::from_str(&cli.algo);
-
-    let (range, picks) = cli.r#type.config();
-    let max = *range.end();
-
-    // Prepare Oracle Engine if needed
-    let mut oracle_ctx = None;
-    let mut oracle_engine = None;
-
-    if let Algorithm::Oracle = algo {
-        // Mocking derived values for now; real implementation will come in modules
-        let ctx = OracleContext::from_args(
-            max,
-            picks as u32,
-            cli.birth_date,
-            cli.blood_type.map(|b| b.into()),
-            cli.aura_color.map(|a| a.into()),
-        );
-        oracle_ctx = Some(ctx);
-    }
-
-    // Correction: OracleContext holding ThreadRng is problematic if we want to build it here.
-    // ThreadRng is thread-local handle.
-    // We should probably just instantiate it inside divine() or pass it.
-    // I will fix `oracle.rs` to NOT hold `rng: ThreadRng` in struct field if it causes issues,
-    // but actually `rand::ThreadRng` is just a handle, maybe it's fine?
-    // "ThreadRng does not implement Clone". So `rng.clone()` failed above.
-    // I'll leave `rng` out of `OracleContext` in the fix, or init it inside.
-
-    // For now, let's FIX oracle.rs before compiling main.rs fully?
-    // OR I can just fix the `OracleContext` initialization below to not clone, but if I need it multiple times...
-    // Actually, `divine` takes `&mut self` and `&OracleContext`.
-    // The modules need randomness.
-    // Best: `OracleContext` holds the seed or just allow modules to make their own `thread_rng()`.
-    // Modules creating their own `thread_rng()` is fine and easier.
-
-    // Let's remove `rng` from `OracleContext` in `oracle.rs` in next step.
-
-    // out が指定されている場合だけ CSV を開く
-    let mut csv_file = if let Some(path) = &cli.out {
-        Some(File::create(path)?)
-    } else {
-        None
+    let algorithm = cli.algorithm.to_ascii_lowercase();
+    let oracle = matches!(algorithm.as_str(), "oracle" | "divine" | "destiny");
+    let mut rng = match (cli.rng, cli.seed) {
+        (RandomKind::Os, None) => Random::Os,
+        (RandomKind::Seeded, Some(seed)) if !oracle => Random::Seeded(seed),
+        (RandomKind::Seeded, _) if oracle => invalid("神託モードでは --rng os を指定してください"),
+        (RandomKind::Seeded, None) => invalid("--rng seeded には --seed が必要です"),
+        (RandomKind::Os, Some(_)) => invalid("--seed は --rng seeded 専用です"),
+        _ => unreachable!(),
     };
 
-    // CSV があればヘッダを書く
-    if let Some(file) = csv_file.as_mut() {
-        let header = build_header(picks);
-        file.write_all(header.as_bytes())?;
+    if algorithm == "odds" {
+        let odds = cli.game.combinations();
+        println!("1等の確率（1口） 1 / {odds}");
+        println!(
+            "毎週1口（年52口）の場合、初当せんまでの平均は約 {:.0} 年",
+            odds as f64 / 52.0
+        );
+        return Ok(());
+    }
+    if matches!(rng, Random::Seeded(_)) {
+        eprintln!("教材モード。同じシードから同じ番号列を再現できます。");
+    }
+    let (max, picks) = cli.game.config();
+    let weights = if oracle {
+        let observer = if !cli.no_prompt && io::stdin().is_terminal() && io::stderr().is_terminal()
+        {
+            eprint!("星の巡りを感じたら Enter を押してください… ");
+            io::stderr().flush()?;
+            let start = Instant::now();
+            io::stdin().read_line(&mut String::new())?;
+            Some(start.elapsed().as_nanos())
+        } else {
+            None
+        };
+        oracle::weights(
+            max,
+            OffsetDateTime::now_utc().to_offset(offset!(+9)).date(),
+            cli.birth_date,
+            cli.birth_hour,
+            cli.blood_type,
+            cli.aura_color,
+            observer,
+        )
+    } else {
+        vec![1; max]
+    };
+
+    let mut csv = cli.out.as_ref().map(File::create).transpose()?;
+    if let Some(file) = &mut csv {
+        write!(file, "draw")?;
+        for i in 1..=picks {
+            write!(file, ",n{i}")?;
+        }
+        writeln!(file)?;
     }
 
-    // Init Engine
-    if let Some(ctx) = &oracle_ctx {
-        oracle_engine = Some(OracleEngine::new(ctx));
-    }
-
+    let mut stdout = io::stdout().lock();
     for i in 1..=cli.n {
-        let ticket = generate_ticket(&algo, range.clone(), picks, &mut oracle_engine, &oracle_ctx);
-
-        // 標準出力
-        let line = ticket
+        let numbers = random::ticket(weights.clone(), picks, &mut rng)?;
+        let line = numbers
             .iter()
-            .map(|n| format!("{:02}", n))
+            .map(|n| format!("{n:02}"))
             .collect::<Vec<_>>()
             .join(" , ");
-
-        println!("{}", line);
-
-        if let Some(file) = csv_file.as_mut() {
-            let row = build_row(i, &ticket);
-            file.write_all(row.as_bytes())?;
+        writeln!(stdout, "{line}")?;
+        if let Some(file) = &mut csv {
+            write!(file, "{i}")?;
+            for n in numbers {
+                write!(file, ",{n}")?;
+            }
+            writeln!(file)?;
         }
     }
-
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn odds_match_game_rules() {
+        assert_eq!(GameType::Loto6.combinations(), 6_096_454);
+        assert_eq!(GameType::Loto7.combinations(), 10_295_472);
+    }
 }

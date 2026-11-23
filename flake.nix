@@ -1,30 +1,23 @@
 {
-  description = "A flake for loto_cli dev environment";
+  description = "Loto CLI development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, rust-overlay }:
+  outputs = { nixpkgs, rust-overlay, ... }:
     let
-      system = "aarch64-darwin"; # Assuming Mac as per context
-      overlays = [ (import rust-overlay) ];
-      pkgs = import nixpkgs {
-        inherit system overlays;
-      };
-    in
-    {
-      devShells.${system}.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          rust-bin.stable.latest.default
-          pkg-config
-          openssl
-        ];
-
-        shellHook = ''
-          echo "🔮 Welcome to the Loto CLI dev environment..."
-        '';
-      };
+      systems = [ "aarch64-darwin" "x86_64-darwin" "aarch64-linux" "x86_64-linux" ];
+    in {
+      devShells = nixpkgs.lib.genAttrs systems (system:
+        let
+          pkgs = import nixpkgs { inherit system; overlays = [ rust-overlay.overlays.default ]; };
+        in {
+          default = pkgs.mkShell {
+            packages = [ (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml) ];
+          };
+        });
     };
 }
